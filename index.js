@@ -3,28 +3,20 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-// Middleware
 app.use(express.json());
 
-// Fayldan ma'lumotlarni o'qish funksiyasi
 const readData = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-// Faylga ma'lumotlarni yozish funksiyasi
 const writeData = (filePath, data) =>
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
-// Foydalanuvchilar va bloglar uchun fayl yo'llari
 const usersFilePath = './database/users.json';
 const blogsFilePath = './database/blogs.json';
 
-// ============= Foydalanuvchilar uchun CRUD ============= //
-
-// 1. Foydalanuvchini ro'yxatdan o'tkazish
 app.post('/users', (req, res) => {
   const users = readData(usersFilePath);
   const { username, password, fullName, age, email, gender } = req.body;
 
-  // Validation
   if (!username || username.length < 3)
     return res.status(400).send({ message: 'Username kamida 3 belgidan iborat bo\'lishi kerak.' });
   if (!password || password.length < 5)
@@ -32,7 +24,6 @@ app.post('/users', (req, res) => {
   if (users.some(user => user.username === username || user.email === email))
     return res.status(400).send({ message: 'Username yoki email allaqachon mavjud.' });
 
-  // Yangi foydalanuvchini qo'shish
   const newUser = {
     id: users.length + 1,
     username,
@@ -48,7 +39,6 @@ app.post('/users', (req, res) => {
   res.status(201).send({ message: 'Foydalanuvchi ro\'yxatdan o\'tkazildi!', user: newUser });
 });
 
-// 2. Foydalanuvchi ma'lumotlarini olish (username yoki email orqali)
 app.get('/users/:identifier', (req, res) => {
   const users = readData(usersFilePath);
   const { identifier } = req.params;
@@ -62,7 +52,6 @@ app.get('/users/:identifier', (req, res) => {
   res.status(200).send(user);
 });
 
-// 3. Foydalanuvchi ma'lumotlarini yangilash
 app.put('/users/:identifier', (req, res) => {
   const users = readData(usersFilePath);
   const { identifier } = req.params;
@@ -74,7 +63,6 @@ app.put('/users/:identifier', (req, res) => {
   if (userIndex === -1)
     return res.status(404).send({ message: 'Foydalanuvchi topilmadi.' });
 
-  // Ma'lumotlarni yangilash
   users[userIndex] = {
     ...users[userIndex],
     username: username || users[userIndex].username,
@@ -89,7 +77,6 @@ app.put('/users/:identifier', (req, res) => {
   res.status(200).send({ message: 'Ma\'lumotlar yangilandi.', user: users[userIndex] });
 });
 
-// 4. Foydalanuvchini o'chirish
 app.delete('/users/:identifier', (req, res) => {
   const users = readData(usersFilePath);
   const { identifier } = req.params;
@@ -104,9 +91,6 @@ app.delete('/users/:identifier', (req, res) => {
   res.status(200).send({ message: 'Foydalanuvchi o\'chirildi.' });
 });
 
-// ============= Bloglar uchun CRUD ============= //
-
-// 1. Blog yozuvi yaratish
 app.post('/blogs', (req, res) => {
   const blogs = readData(blogsFilePath);
   const { title, slug, content, tags } = req.body;
@@ -128,13 +112,11 @@ app.post('/blogs', (req, res) => {
   res.status(201).send({ message: 'Blog yozuvi yaratildi.', blog: newBlog });
 });
 
-// 2. Blog yozuvlarini olish
 app.get('/blogs', (req, res) => {
   const blogs = readData(blogsFilePath);
   res.status(200).send(blogs);
 });
 
-// 3. Blog yozuvini yangilash
 app.put('/blogs/:id', (req, res) => {
   const blogs = readData(blogsFilePath);
   const { id } = req.params;
@@ -155,7 +137,6 @@ app.put('/blogs/:id', (req, res) => {
   res.status(200).send({ message: 'Blog yozuvi yangilandi.', blog: blogs[blogIndex] });
 });
 
-// 4. Blog yozuvini o'chirish
 app.delete('/blogs/:id', (req, res) => {
   const blogs = readData(blogsFilePath);
   const { id } = req.params;
@@ -168,7 +149,6 @@ app.delete('/blogs/:id', (req, res) => {
   res.status(200).send({ message: 'Blog yozuvi o\'chirildi.' });
 });
 
-// Serverni ishga tushirish
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
