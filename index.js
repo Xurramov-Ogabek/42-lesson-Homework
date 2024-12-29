@@ -1,154 +1,174 @@
 const express = require('express');
 const fs = require('fs');
-const bodyParser = require('body-parser');
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 3000;
 
-app.use(bodyParser.json());
+// Middleware
+app.use(express.json());
 
-const usersFile = './database/users.json';
-const blogsFile = './database/blog.json';
+// Fayldan ma'lumotlarni o'qish funksiyasi
+const readData = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-const readFile = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-const writeFile = (filePath, data) => fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+// Faylga ma'lumotlarni yozish funksiyasi
+const writeData = (filePath, data) =>
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
-app.post('/register', (req, res) => {
-    const { username, password, fullName, age, email, gender } = req.body;
-    const users = readFile(usersFile);
+// Foydalanuvchilar va bloglar uchun fayl yo'llari
+const usersFilePath = './database/users.json';
+const blogsFilePath = './database/blogs.json';
 
-    if (!username || username.length < 3) return res.status(400).json({ message: 'Username is invalid' });
-    if (!password || password.length < 5) return res.status(400).json({ message: 'Password is invalid' });
-    if (age < 10) return res.status(400).json({ message: 'Age must be at least 10' });
+// ============= Foydalanuvchilar uchun CRUD ============= //
 
-    if (users.some((user) => user.username === username)) {
-        return res.status(400).json({ message: 'Username already exists' });
-    }
+// 1. Foydalanuvchini ro'yxatdan o'tkazish
+app.post('/users', (req, res) => {
+  const users = readData(usersFilePath);
+  const { username, password, fullName, age, email, gender } = req.body;
 
-    const newUser = {
-        id: users.length + 1,
-        username,
-        password,
-        fullName: fullName || '',
-        age,
-        email,
-    };
+  // Validation
+  if (!username || username.length < 3)
+    return res.status(400).send({ message: 'Username kamida 3 belgidan iborat bo\'lishi kerak.' });
+  if (!password || password.length < 5)
+    return res.status(400).send({ message: 'Parol kamida 5 belgidan iborat bo\'lishi kerak.' });
+  if (users.some(user => user.username === username || user.email === email))
+    return res.status(400).send({ message: 'Username yoki email allaqachon mavjud.' });
 
-    users.push(newUser);
-    writeFile(usersFile, users);
-    res.status(201).json({ message: 'User registered successfully', user: newUser });
+  // Yangi foydalanuvchini qo'shish
+  const newUser = {
+    id: users.length + 1,
+    username,
+    password,
+    fullName: fullName || '',
+    age,
+    email,
+    gender: gender || null,
+  };
+  users.push(newUser);
+  writeData(usersFilePath, users);
+
+  res.status(201).send({ message: 'Foydalanuvchi ro\'yxatdan o\'tkazildi!', user: newUser });
 });
 
-app.get('/', (req, res) => {
-    res.send('Welcome to the Home Page!');
+// 2. Foydalanuvchi ma'lumotlarini olish (username yoki email orqali)
+app.get('/users/:identifier', (req, res) => {
+  const users = readData(usersFilePath);
+  const { identifier } = req.params;
+
+  const user = users.find(
+    (u) => u.username === identifier || u.email === identifier
+  );
+  if (!user)
+    return res.status(404).send({ message: 'Foydalanuvchi topilmadi.' });
+
+  res.status(200).send(user);
 });
 
-app.post('/login', (req, res) => {
-    const { username, email, password } = req.body;
-    const users = readFile(usersFile);
+// 3. Foydalanuvchi ma'lumotlarini yangilash
+app.put('/users/:identifier', (req, res) => {
+  const users = readData(usersFilePath);
+  const { identifier } = req.params;
+  const { username, password, fullName, age, email, gender } = req.body;
 
-    const user = users.find((user) => (user.username === username || user.email === email) && user.password === password);
+  const userIndex = users.findIndex(
+    (u) => u.username === identifier || u.email === identifier
+  );
+  if (userIndex === -1)
+    return res.status(404).send({ message: 'Foydalanuvchi topilmadi.' });
 
-    if (!user) {
-        return res.status(400).json({ message: 'Invalid username/email or password' });
-    }
+  // Ma'lumotlarni yangilash
+  users[userIndex] = {
+    ...users[userIndex],
+    username: username || users[userIndex].username,
+    password: password || users[userIndex].password,
+    fullName: fullName || users[userIndex].fullName,
+    age: age || users[userIndex].age,
+    email: email || users[userIndex].email,
+    gender: gender || users[userIndex].gender,
+  };
+  writeData(usersFilePath, users);
 
-    res.json({ message: 'Login successful', user });
+  res.status(200).send({ message: 'Ma\'lumotlar yangilandi.', user: users[userIndex] });
 });
 
-app.get('/profile/:identifier', (req, res) => {
-    const identifier = req.params.identifier;
-    const users = readFile(usersFile);
+// 4. Foydalanuvchini o'chirish
+app.delete('/users/:identifier', (req, res) => {
+  const users = readData(usersFilePath);
+  const { identifier } = req.params;
 
-    const user = users.find((user) => user.username === identifier || user.email === identifier);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+  const newUsers = users.filter(
+    (u) => u.username !== identifier && u.email !== identifier
+  );
+  if (newUsers.length === users.length)
+    return res.status(404).send({ message: 'Foydalanuvchi topilmadi.' });
 
-    res.json(user);
+  writeData(usersFilePath, newUsers);
+  res.status(200).send({ message: 'Foydalanuvchi o\'chirildi.' });
 });
 
-app.put('/profile/:identifier', (req, res) => {
-    const identifier = req.params.identifier;
-    const { fullName, age, gender } = req.body;
-    const users = readFile(usersFile);
+// ============= Bloglar uchun CRUD ============= //
 
-    const user = users.find((user) => user.username === identifier || user.email === identifier);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+// 1. Blog yozuvi yaratish
+app.post('/blogs', (req, res) => {
+  const blogs = readData(blogsFilePath);
+  const { title, slug, content, tags } = req.body;
 
-    user.fullName = fullName || user.fullName;
-    user.age = age || user.age;
-    user.gender = gender || user.gender;
+  if (!title || !content)
+    return res.status(400).send({ message: 'Title va content talab qilinadi.' });
 
-    writeFile(usersFile, users);
-    res.json({ message: 'Profile updated', user });
+  const newBlog = {
+    id: blogs.length + 1,
+    title,
+    slug: slug || title.toLowerCase().replace(/\s+/g, '-'),
+    content,
+    tags: tags || [],
+    comments: [],
+  };
+  blogs.push(newBlog);
+  writeData(blogsFilePath, blogs);
+
+  res.status(201).send({ message: 'Blog yozuvi yaratildi.', blog: newBlog });
 });
 
-app.delete('/profile/:identifier', (req, res) => {
-    const identifier = req.params.identifier;
-    const users = readFile(usersFile);
-
-    const updatedUsers = users.filter((user) => user.username !== identifier && user.email !== identifier);
-    if (users.length === updatedUsers.length) return res.status(404).json({ message: 'User not found' });
-
-    writeFile(usersFile, updatedUsers);
-    res.json({ message: 'User deleted' });
+// 2. Blog yozuvlarini olish
+app.get('/blogs', (req, res) => {
+  const blogs = readData(blogsFilePath);
+  res.status(200).send(blogs);
 });
 
-app.post('/blog', (req, res) => {
-    const { title, slug, content, tags } = req.body;
-    const blogs = readFile(blogsFile);
+// 3. Blog yozuvini yangilash
+app.put('/blogs/:id', (req, res) => {
+  const blogs = readData(blogsFilePath);
+  const { id } = req.params;
+  const { title, content, tags } = req.body;
 
-    const newBlog = {
-        id: blogs.length + 1,
-        title,
-        slug,
-        content,
-        tags,
-        comments: [],
-    };
+  const blogIndex = blogs.findIndex((b) => b.id === parseInt(id));
+  if (blogIndex === -1)
+    return res.status(404).send({ message: 'Blog yozuvi topilmadi.' });
 
-    blogs.push(newBlog);
-    writeFile(blogsFile, blogs);
-    res.status(201).json({ message: 'Blog created', blog: newBlog });
+  blogs[blogIndex] = {
+    ...blogs[blogIndex],
+    title: title || blogs[blogIndex].title,
+    content: content || blogs[blogIndex].content,
+    tags: tags || blogs[blogIndex].tags,
+  };
+  writeData(blogsFilePath, blogs);
+
+  res.status(200).send({ message: 'Blog yozuvi yangilandi.', blog: blogs[blogIndex] });
 });
 
-app.get('/blog', (req, res) => {
-    const blogs = readFile(blogsFile);
-    res.json(blogs);
+// 4. Blog yozuvini o'chirish
+app.delete('/blogs/:id', (req, res) => {
+  const blogs = readData(blogsFilePath);
+  const { id } = req.params;
+
+  const newBlogs = blogs.filter((b) => b.id !== parseInt(id));
+  if (newBlogs.length === blogs.length)
+    return res.status(404).send({ message: 'Blog yozuvi topilmadi.' });
+
+  writeData(blogsFilePath, newBlogs);
+  res.status(200).send({ message: 'Blog yozuvi o\'chirildi.' });
 });
 
-app.put('/blog/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const { title, slug, content, tags } = req.body;
-    const blogs = readFile(blogsFile);
-
-    const blog = blogs.find((b) => b.id === id);
-    if (!blog) return res.status(404).json({ message: 'Blog not found' });
-
-    blog.title = title || blog.title;
-    blog.slug = slug || blog.slug;
-    blog.content = content || blog.content;
-    blog.tags = tags || blog.tags;
-
-    writeFile(blogsFile, blogs);
-    res.json({ message: 'Blog updated', blog });
-});
-
-app.delete('/blog/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const blogs = readFile(blogsFile);
-
-    const updatedBlogs = blogs.filter((blog) => blog.id !== id);
-    if (blogs.length === updatedBlogs.length) return res.status(404).json({ message: 'Blog not found' });
-
-    writeFile(blogsFile, updatedBlogs);
-    res.json({ message: 'Blog deleted' });
-});
-
-process.on('SIGINT', () => {
-    console.log('Server is shutting down...');
-    process.exit();
-});
-
+// Serverni ishga tushirish
 app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
-
