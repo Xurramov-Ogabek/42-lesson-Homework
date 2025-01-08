@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "title": "Mukammal dasturlash",
+    "author": "Javlon Abdullo",
+    "content": "Dasturlash bilimlari",
+    "tags": "Yaxshi kitob",
+    "comments": [
+      {
+        "user_id": 1,
+        "comment": "Bu kitob judaham yahshi kitob."
+      }
+    ]
+  }
+]
